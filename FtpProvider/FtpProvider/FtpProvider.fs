@@ -53,7 +53,7 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
 
             td.AddMembersDelayed(fun () -> 
                 // TODO.6
-                if diag then printfn "debug: getting site: %s, user: %s, pwd: %s" site user (String.replicate (pwd.Length) "#")
+                if diag then printfn "debug: getting site: %s, user: %s, pwd: %s" site user (String.replicate (pwd.Length) "*")
                 let files, dirs = getFtpDirectory (site, user, pwd)
 
                 [
@@ -71,31 +71,31 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
                     
                         let contentsProperty = 
                                 ProvidedProperty("Contents", typeof<obj>,
-                                                    GetterCode =
-                                                        (fun args -> 
-                                                            <@@ 
-                                                                if diag then printfn "debug: getting %s%s" site file
-                                                                let request = WebRequest.Create(site + file) :?> FtpWebRequest
-                                                    
-                                                                if diag then printf "  - debug: 1)getting"
-                                                                request.Method <- WebRequestMethods.Ftp.DownloadFile
-                                                                request.Credentials <- new NetworkCredential(user, pwd) 
-                                                                let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
-                                                    
-                                                                if diag then printf ",2)streaming"
-                                                                use responseStream = response.GetResponseStream()
-                                                                use reader = new StreamReader(responseStream)
-                                                    
-                                                                if diag then printf ",3)reading"
-                                                                let r = reader.ReadToEnd() :> obj
-                                                                if diag then printfn ",4)returning info"
-                                                                r
-
-                                                                // TODO.3
-
-                                                              @@>))
+                                                     GetterCode = (fun args -> <@@ "the file contents" @@> ))
+//                                                   GetterCode = 
+//                                                        (fun args -> 
+//                                                            <@@ 
+//                                                                if diag then printfn "debug: getting %s%s" site file
+//                                                                let request = WebRequest.Create(site + file) :?> FtpWebRequest
+//                                                    
+//                                                                if diag then printf "  - debug: 1)getting"
+//                                                                request.Method <- WebRequestMethods.Ftp.DownloadFile
+//                                                                request.Credentials <- new NetworkCredential(user, pwd) 
+//                                                                let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
+//                                                    
+//                                                                if diag then printf ",2)streaming"
+//                                                                use responseStream = response.GetResponseStream()
+//                                                                use reader = new StreamReader(responseStream)
+//                                                    
+//                                                                if diag then printf ",3)reading"
+//                                                                let r = reader.ReadToEnd() :> obj
+//                                                                if diag then printfn ",4)returning info"
+//                                                                r
+//
+//                                                                // TODO.3
+//
+//                                                              @@>))
                         nestedType.AddMember contentsProperty
-
                         yield nestedType :> MemberInfo 
                    ]
                    )

@@ -68,34 +68,39 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
                         // BUG.1
 
                         let nestedType = ProvidedTypeDefinition(file, Some typeof<obj>)
-                    
-                        let contentsProperty = 
+
+                        let contentsProperty =                                   
                                 ProvidedProperty("Contents", typeof<obj>,
-                                                     GetterCode = (fun args -> <@@ "the file contents" @@> ))
-//                                                   GetterCode = 
-//                                                        (fun args -> 
-//                                                            <@@ 
-//                                                                if diag then printfn "debug: getting %s%s" site file
-//                                                                let request = WebRequest.Create(site + file) :?> FtpWebRequest
-//                                                    
-//                                                                if diag then printf "  - debug: 1)getting"
-//                                                                request.Method <- WebRequestMethods.Ftp.DownloadFile
-//                                                                request.Credentials <- new NetworkCredential(user, pwd) 
-//                                                                let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
-//                                                    
-//                                                                if diag then printf ",2)streaming"
-//                                                                use responseStream = response.GetResponseStream()
-//                                                                use reader = new StreamReader(responseStream)
-//                                                    
-//                                                                if diag then printf ",3)reading"
-//                                                                let r = reader.ReadToEnd() :> obj
-//                                                                if diag then printfn ",4)returning info"
-//                                                                r
-//
-//                                                                // TODO.3
-//
-//                                                              @@>))
+                                                    
+                                                   IsStatic=true,
+
+//                                                     GetterCode = (fun args -> <@@ "the file contents" @@> ))
+
+                                                   GetterCode = 
+                                                        (fun args -> 
+                                                            <@@ 
+                                                                if diag then printfn "debug: getting %s%s" site file
+                                                                let request = WebRequest.Create(site + file) :?> FtpWebRequest
+                                                    
+                                                                if diag then printf "  - debug: 1)getting"
+                                                                request.Method <- WebRequestMethods.Ftp.DownloadFile
+                                                                request.Credentials <- new NetworkCredential(user, pwd) 
+                                                                let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
+                                                    
+                                                                if diag then printf ",2)streaming"
+                                                                use responseStream = response.GetResponseStream()
+                                                                use reader = new StreamReader(responseStream)
+                                                    
+                                                                if diag then printf ",3)reading"
+                                                                let r = reader.ReadToEnd() :> obj
+                                                                if diag then printfn ",4)returning info"
+                                                                r
+                                                                // TODO.
+                                                                // TODO.3
+
+                                                              @@>))
                         nestedType.AddMember contentsProperty
+
                         yield nestedType :> MemberInfo 
                    ]
                    )
@@ -137,16 +142,18 @@ do ()
 // TODO.4: consider having a verbose and diagnostic modes to std out?  ie. consider actually keeping them after testing is complete
 // TODO.5: allow this to be set through type provider instantiation param <>
 // TODO.6: add diag info to intellisense to cover command line + also IDE support (ie. so that it's transparent irrespective of usage style)
+// TODO.7: get back files in various formats such as text and binary.  Include means to be able to flick on / off all the important FTP switches
+// TODO.8: include ways to get file sizes
 
 // BUG
 // ---
-// BUG.1: file identifiers are never defined.  Is this because of an error in the quotation?  Why?
 
 // DONE
 // ----
 
 // FIXED
 // -----
+// BUG.1: file identifiers are never defined.  Is this because of an error in the quotation?  Why?
 
 // NOTES
 // -----

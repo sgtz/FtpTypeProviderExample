@@ -51,7 +51,6 @@
   <ItemGroup>
     <Compile Include="ProvidedTypes.fsi" />
     <Compile Include="ProvidedTypes.fs" />
-    <Content Include="packages.config" />
     <Compile Include="FtpProvider.fs" />
   </ItemGroup>
   <ItemGroup>

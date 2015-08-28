@@ -7,9 +7,6 @@ open System.Reflection
 open ProviderImplementation.ProvidedTypes
 open Microsoft.FSharp.Core.CompilerServices
 
-[<Literal>]
-let diag=true  // TODO.4  TODO.5
-
 /// Get the directories and files in an FTP site using anonymous login
 let getFtpDirectory (site:string, user:string, pwd:string) = 
     let request = 
@@ -39,8 +36,6 @@ let getFtpDirectory (site:string, user:string, pwd:string) =
 
     files, dirs
 
-// getFtpDirectory  "ftp://ftp.ncbi.nlm.nih.gov/"
-
 [<TypeProvider>]
 type FtpProviderImpl(config : TypeProviderConfig) as this =
     inherit TypeProviderForNamespaces ()
@@ -48,16 +43,13 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
     let asm = Assembly.GetExecutingAssembly()
 
     // Recursive, on-demand adding of types
-    let createTypes (typeName, site, user, pwd:string) = 
+    let createTypes (typeName, site, user, pwd:string, useBinary:bool) = 
         let rec addTypes (site:string, td:ProvidedTypeDefinition) =
 
             td.AddMembersDelayed(fun () -> 
                 // TODO.6
-                if diag then printfn "debug: getting site: %s, user: %s, pwd: %s" site user (String.replicate (pwd.Length) "*")
                 let files, dirs = getFtpDirectory (site, user, pwd)
-
                 [
-                    if diag then printfn "- debug: list dirs and files" 
                     for dir in dirs do 
                         let nestedType = ProvidedTypeDefinition(dir, Some typeof<obj>)
                         addTypes(site + dir + "/", nestedType)
@@ -65,35 +57,25 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
 
                     for file in files do 
 
-                        // BUG.1
-
                         let nestedType = ProvidedTypeDefinition(file, Some typeof<obj>)
 
                         let contentsProperty =                                   
                                 ProvidedProperty("Contents", typeof<obj>,
-                                                    
                                                    IsStatic=true,
-
-//                                                     GetterCode = (fun args -> <@@ "the file contents" @@> ))
-
                                                    GetterCode = 
                                                         (fun args -> 
                                                             <@@ 
-                                                                if diag then printfn "debug: getting %s%s" site file
                                                                 let request = WebRequest.Create(site + file) :?> FtpWebRequest
                                                     
-                                                                if diag then printf "  - debug: 1)getting"
                                                                 request.Method <- WebRequestMethods.Ftp.DownloadFile
+                                                                request.UseBinary <- useBinary
                                                                 request.Credentials <- new NetworkCredential(user, pwd) 
                                                                 let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
                                                     
-                                                                if diag then printf ",2)streaming"
                                                                 use responseStream = response.GetResponseStream()
                                                                 use reader = new StreamReader(responseStream)
                                                     
-                                                                if diag then printf ",3)reading"
                                                                 let r = reader.ReadToEnd() :> obj
-                                                                if diag then printfn ",4)returning info"
                                                                 r
                                                                 // TODO.
                                                                 // TODO.3
@@ -108,10 +90,18 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
         addTypes(site, actualType)
         actualType
 
+    let addProvidedStaticParameter nme typ xmldoc = 
+      let p = ProvidedStaticParameter(nme,typ) 
+      p.AddXmlDoc(sprintf xmldoc)
+      p
+
     let _ = 
+        let a = ProvidedTypeDefinition(asm, nameSpace, "FtpProvider", Some typeof<obj>)
+        a.AddXmlDoc("An FTP Type Provider which lets you 'dot' into directory structures, and then retrieve a file by 'dotting' into the '.Contents' tag.  note: there are no progress updates, so if it's a large file over a slow connection, the only solution is to wait.  Perhaps try a smaller file first to verify.")  // BUG.2 
+
         let topType = ProvidedTypeDefinition(asm, nameSpace, "FtpProvider", Some typeof<obj>)
         let siteParam = 
-           let p = ProvidedStaticParameter("Url",typeof<string>) 
+           let p = ProvidedStaticParameter("Url",typeof<string>,"") 
            p.AddXmlDoc(sprintf "The URL of the FTP site, including ftp://")
            p
         let userParam = 
@@ -122,12 +112,17 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
            let p = ProvidedStaticParameter("Password",typeof<string>, "janedoe@contoso.com") 
            p.AddXmlDoc("The password used to access the FTP site (default 'janedoe@contoso.com')")
            p
-        let staticParams = [ siteParam; userParam; pwdParam ]
+        let useBinary = 
+            let p = ProvidedStaticParameter("UseBinary",typeof<bool>, true)
+            p.AddXmlDoc("sets the data transfer data type to be binary (true) or ascii (false).  Binary mode gives a true, exact representation.  More often than not is the safer thing to use as this mode will handle both text and binary.  Use Ascii mode if you want to transfer text only, and you are happy to let FTP decide on appropriate line break characters translations, etc.")
+            p
+        let staticParams = [ siteParam; userParam; pwdParam; useBinary ]
         topType.DefineStaticParameters(staticParams, (fun typeName args -> 
             let site = args.[0] :?> string
-            let user = args.[1] :?> string  |> fun s -> if String.IsNullOrEmpty(s) then "anonymous" else s           // TODO.1
-            let pwd =  args.[2] :?> string  |> fun s -> if String.IsNullOrEmpty(s) then "janeDoe@contoso.com" else s
-            createTypes(typeName, site, user, pwd)))
+            let user = args.[1] :?> string
+            let pwd =  args.[2] :?> string
+            let useBinary = args.[3] :?> bool
+            createTypes(typeName, site, user, pwd, useBinary)))  // pass in top type details
         this.AddNamespace(nameSpace, [topType])
 
 [<assembly:TypeProviderAssembly>]
@@ -139,21 +134,27 @@ do ()
 // TODO.1: pick up FTP courtesy details from environment variables?
 // TODO.2: add progress updates via intellisense?  ie. |          |  and |****  underneath for a text based left to right gauge
 // TODO.3: return `notfound or exception on error
-// TODO.4: consider having a verbose and diagnostic modes to std out?  ie. consider actually keeping them after testing is complete
-// TODO.5: allow this to be set through type provider instantiation param <>
 // TODO.6: add diag info to intellisense to cover command line + also IDE support (ie. so that it's transparent irrespective of usage style)
-// TODO.7: get back files in various formats such as text and binary.  Include means to be able to flick on / off all the important FTP switches
 // TODO.8: include ways to get file sizes
 
 // BUG
 // ---
+// BUG.2: this text is not showing up in intellisense
 
 // DONE
 // ----
+// TODO.7: get back files in various formats such as text and binary.  Include means to be able to flick on / off all the important FTP switches
 
 // FIXED
 // -----
 // BUG.1: file identifiers are never defined.  Is this because of an error in the quotation?  Why?
+
+// RESOLVED
+// --------
+// TODO.4: consider having a verbose and diagnostic modes to std out?  ie. consider actually keeping them after testing is complete
+//  -- decided not to
+// TODO.5: allow this to be set through type provider instantiation param <>
+//  -- decided not to
 
 // NOTES
 // -----

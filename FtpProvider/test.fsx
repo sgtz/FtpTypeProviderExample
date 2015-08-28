@@ -1,6 +1,8 @@
 #r @"FtpProvider\bin\Debug\FtpTypeProvider.dll"
 
-type F = FSharp.Management.FtpProvider<"ftp://ftp.ncbi.nlm.nih.gov/"> 
+type F = FSharp.Management.FtpProvider<"ftp://ftp.ncbi.nlm.nih.gov/">
 
-F.genomes.Drosophila_melanogaster.``RELEASE_4.1``.CHR_2.``NT_033778.faa``.Contents      
+let file = F.genomes.Drosophila_melanogaster.``RELEASE_4.1``.CHR_2.``NT_033778.asn``.Contents
+
+      
 

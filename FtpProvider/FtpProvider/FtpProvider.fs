@@ -148,10 +148,9 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
         p
 
     let _ = 
-        let a = ProvidedTypeDefinition(asm, nameSpace, "FtpProvider", Some typeof<obj>)
-        a.AddXmlDoc("An FTP Type Provider which lets you 'dot' into directory structures, and then retrieve a file by 'dotting' into the '.Contents' tag.  note: there are no progress updates, so if it's a large file over a slow connection, the only solution is to wait.  Perhaps try a smaller file first to verify.")  // BUG.2 
-
         let topType = ProvidedTypeDefinition(asm, nameSpace, "FtpProvider", Some typeof<obj>)
+        topType.AddXmlDoc("An FTP Type Provider which lets you 'dot' into directory structures, and then retrieve a file by 'dotting' into the '.GetContents' property.  note: there are no progress updates, so if it's a large file over a slow connection, the only solution is to wait.  Perhaps try a smaller file first to verify.")  
+
         let siteParam = 
            let p = ProvidedStaticParameter("Url",typeof<string>,"") 
            p.AddXmlDoc(sprintf "The URL of the FTP site, including ftp://")

@@ -1,12 +1,2 @@
-FtpProvider/FtpProvider/bin/Debug/FSharp.Core.dll
-FtpProvider/FtpProvider/bin/Debug/FSharp.Core.xml
-FtpProvider/FtpProvider/bin/Debug/FtpTypeProvider.dll
-FtpProvider/FtpProvider/bin/Debug/FtpTypeProvider.pdb
-FtpProvider/FtpProvider/bin/Debug/TestTypeProvider.XML
-FtpProvider/FtpProvider/obj/Debug/FtpTypeProvider.dll
-FtpProvider/FtpProvider/obj/Debug/FtpTypeProvider.fsproj.FileListAbsolute.txt
-FtpProvider/FtpProvider/obj/Debug/FtpTypeProvider.pdb
-FtpProvider/packages/FSharp.TypeProviders.StarterPack.1.1.3.67/FSharp.TypeProviders.StarterPack.1.1.3.67.nupkg
-FtpProvider/packages/FSharp.TypeProviders.StarterPack.1.1.3.67/content/DebugProvidedTypes.fs
-FtpProvider/packages/FSharp.TypeProviders.StarterPack.1.1.3.67/content/ProvidedTypes.fs
-FtpProvider/packages/FSharp.TypeProviders.StarterPack.1.1.3.67/content/ProvidedTypes.fsi
+FtpProvider/FtpProvider/bin
+FtpProvider/packages

@@ -43,11 +43,9 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
     let asm = Assembly.GetExecutingAssembly()
 
     // Recursive, on-demand adding of types
-    let createTypes (typeName, site, user, pwd:string, useBinary:bool) = 
+    let createTypes (typeName, site, useBinary:bool, user, pwd:string) = 
         let rec addTypes (site:string, td:ProvidedTypeDefinition) =
-
             td.AddMembersDelayed(fun () -> 
-                // TODO.6
                 let files, dirs = getFtpDirectory (site, user, pwd)
                 [
                     for dir in dirs do 
@@ -59,29 +57,63 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
 
                         let nestedType = ProvidedTypeDefinition(file, Some typeof<obj>)
 
-                        let contentsProperty =                                   
-                                ProvidedProperty("Contents", typeof<obj>,
-                                                   IsStatic=true,
-                                                   GetterCode = 
-                                                        (fun args -> 
-                                                            <@@ 
-                                                                let request = WebRequest.Create(site + file) :?> FtpWebRequest
+                        let getterQuotation = 
+                                      (fun args -> 
+                                          <@@ 
+                                              let request = WebRequest.Create(site + file) :?> FtpWebRequest
                                                     
-                                                                request.Method <- WebRequestMethods.Ftp.DownloadFile
-                                                                request.UseBinary <- useBinary
-                                                                request.Credentials <- new NetworkCredential(user, pwd) 
-                                                                let response = request.GetResponse() :?> FtpWebResponse   // TODO.2 
+                                              request.Method <- WebRequestMethods.Ftp.DownloadFile
+                                              request.UseBinary <- useBinary
+                                              request.Credentials <- new NetworkCredential(user, pwd) 
+                                              let response = request.GetResponse() :?> FtpWebResponse   
                                                     
-                                                                use responseStream = response.GetResponseStream()
-                                                                use reader = new StreamReader(responseStream)
-                                                    
-                                                                let r = reader.ReadToEnd() :> obj
-                                                                r
-                                                                // TODO.
-                                                                // TODO.3
+                                              use responseStream = response.GetResponseStream()
+                                              match useBinary with
+                                              | true -> 
+                                                          use ms = new MemoryStream()
+                                                          responseStream.CopyTo(ms)
+                                                          ms.ToArray() :> obj
+                                              | false ->
+                                                          use reader = new StreamReader(responseStream)
+                                                          reader.ReadToEnd() :> obj
+                                            @@>)
 
-                                                              @@>))
+                        let contentsProperty =                                   
+                                ProvidedProperty("GetContents", typeof<obj>,
+                                                   IsStatic=true,
+                                                   GetterCode = getterQuotation)
                         nestedType.AddMember contentsProperty
+
+                        let getterQuotationAsync = 
+                              (fun args -> 
+                                          <@@ 
+                                              let request = WebRequest.Create(site + file) :?> FtpWebRequest
+                                                    
+                                              request.Method <- WebRequestMethods.Ftp.DownloadFile
+                                              request.UseBinary <- useBinary
+                                              request.Credentials <- new NetworkCredential(user, pwd) 
+                                              let response = request.GetResponse() :?> FtpWebResponse   
+                                                    
+                                              use responseStream = response.GetResponseStream()
+                                              async {
+                                                match useBinary with
+                                                | true -> 
+                                                            use ms = new MemoryStream()
+                                                            let task = responseStream.CopyToAsync(ms)
+                                                            task.Wait()  
+                                                            return ms.ToArray() :> obj
+                                                | false ->
+                                                            use reader = new StreamReader(responseStream)
+                                                            let task = reader.ReadToEndAsync() 
+                                                            return task.Result :> obj
+                                              }
+                                            @@>)
+
+                        let contentsPropertyAsync =                                   
+                                ProvidedProperty("GetContentsAsync", typeof<obj>,
+                                                   IsStatic=true,
+                                                   GetterCode = getterQuotationAsync)
+                        nestedType.AddMember contentsPropertyAsync
 
                         yield nestedType :> MemberInfo 
                    ]
@@ -91,9 +123,9 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
         actualType
 
     let addProvidedStaticParameter nme typ xmldoc = 
-      let p = ProvidedStaticParameter(nme,typ) 
-      p.AddXmlDoc(sprintf xmldoc)
-      p
+        let p = ProvidedStaticParameter(nme,typ) 
+        p.AddXmlDoc(sprintf xmldoc)
+        p
 
     let _ = 
         let a = ProvidedTypeDefinition(asm, nameSpace, "FtpProvider", Some typeof<obj>)
@@ -113,16 +145,16 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
            p.AddXmlDoc("The password used to access the FTP site (default 'janedoe@contoso.com')")
            p
         let useBinary = 
-            let p = ProvidedStaticParameter("UseBinary",typeof<bool>, true)
-            p.AddXmlDoc("sets the data transfer data type to be binary (true) or ascii (false).  Binary mode gives a true, exact representation.  More often than not is the safer thing to use as this mode will handle both text and binary.  Use Ascii mode if you want to transfer text only, and you are happy to let FTP decide on appropriate line break characters translations, etc.")
+            let p = ProvidedStaticParameter("UseBinary",typeof<bool>, false)
+            p.AddXmlDoc("sets the data transfer data type to be binary (true) or the default of ascii (false).  Binary mode gives a true, exact representation.  More often than not is the safer thing to use as this mode will handle both text and binary.  Use Ascii mode if you want to transfer text only, and you are happy to let FTP decide on appropriate line break characters translations, etc.")
             p
-        let staticParams = [ siteParam; userParam; pwdParam; useBinary ]
+        let staticParams = [ siteParam; useBinary; userParam; pwdParam ]
         topType.DefineStaticParameters(staticParams, (fun typeName args -> 
             let site = args.[0] :?> string
-            let user = args.[1] :?> string
-            let pwd =  args.[2] :?> string
-            let useBinary = args.[3] :?> bool
-            createTypes(typeName, site, user, pwd, useBinary)))  // pass in top type details
+            let useBinary = args.[1] :?> bool
+            let user = args.[2] :?> string
+            let pwd =  args.[3] :?> string
+            createTypes(typeName, site, useBinary, user, pwd)))  // pass in top type details
         this.AddNamespace(nameSpace, [topType])
 
 [<assembly:TypeProviderAssembly>]
@@ -141,20 +173,6 @@ do ()
 // ---
 // BUG.2: this text is not showing up in intellisense
 
-// DONE
-// ----
-// TODO.7: get back files in various formats such as text and binary.  Include means to be able to flick on / off all the important FTP switches
-
-// FIXED
-// -----
-// BUG.1: file identifiers are never defined.  Is this because of an error in the quotation?  Why?
-
-// RESOLVED
-// --------
-// TODO.4: consider having a verbose and diagnostic modes to std out?  ie. consider actually keeping them after testing is complete
-//  -- decided not to
-// TODO.5: allow this to be set through type provider instantiation param <>
-//  -- decided not to
 
 // NOTES
 // -----

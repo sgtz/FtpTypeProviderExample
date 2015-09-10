@@ -36,6 +36,28 @@ let getFtpDirectory (site:string, user:string, pwd:string) =
 
     files, dirs
 
+open System
+open System.Threading
+open System.Threading.Tasks
+
+//This extends the Async module to add the
+//AwaitTaskVoid function, which will now appear
+//in intellisense
+module Async =
+    let inline awaitPlainTask (task: Task) =
+        // rethrow exception from preceding task if it fauled
+        let continuation (t : Task) : unit =
+            match t.IsFaulted with
+            | true -> raise t.Exception
+            | arg -> ()
+        task.ContinueWith continuation |> Async.AwaitTask
+
+    let inline startAsPlainTask (work : Async<unit>) =
+      Task.Factory.StartNew(fun () -> work |> Async.RunSynchronously)
+
+    let AwaitVoidTask : (Task -> Async<unit>) =
+      Async.AwaitIAsyncResult >> Async.Ignore
+
 [<TypeProvider>]
 type FtpProviderImpl(config : TypeProviderConfig) as this =
     inherit TypeProviderForNamespaces ()
@@ -68,14 +90,13 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
                                               let response = request.GetResponse() :?> FtpWebResponse   
                                                     
                                               use responseStream = response.GetResponseStream()
-                                              match useBinary with
-                                              | true -> 
-                                                          use ms = new MemoryStream()
-                                                          responseStream.CopyTo(ms)
-                                                          ms.ToArray() :> obj
-                                              | false ->
-                                                          use reader = new StreamReader(responseStream)
-                                                          reader.ReadToEnd() :> obj
+                                              if useBinary then
+                                                  use ms = new MemoryStream()
+                                                  responseStream.CopyTo(ms)
+                                                  ms.ToArray() :> obj
+                                              else
+                                                  use reader = new StreamReader(responseStream)
+                                                  reader.ReadToEnd() :> obj
                                             @@>)
 
                         let contentsProperty =                                   
@@ -87,30 +108,29 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
                         let getterQuotationAsync = 
                               (fun args -> 
                                           <@@ 
-                                              let request = WebRequest.Create(site + file) :?> FtpWebRequest
-                                                    
-                                              request.Method <- WebRequestMethods.Ftp.DownloadFile
-                                              request.UseBinary <- useBinary
-                                              request.Credentials <- new NetworkCredential(user, pwd) 
-                                              let response = request.GetResponse() :?> FtpWebResponse   
-                                                    
-                                              use responseStream = response.GetResponseStream()
                                               async {
-                                                match useBinary with
-                                                | true -> 
-                                                            use ms = new MemoryStream()
-                                                            let task = responseStream.CopyToAsync(ms)
-                                                            task.Wait()  
-                                                            return ms.ToArray() :> obj
-                                                | false ->
-                                                            use reader = new StreamReader(responseStream)
-                                                            let task = reader.ReadToEndAsync() 
-                                                            return task.Result :> obj
+
+                                                  let request = WebRequest.Create(site + file) :?> FtpWebRequest
+                                                    
+                                                  request.Method <- WebRequestMethods.Ftp.DownloadFile
+                                                  request.UseBinary <- useBinary
+                                                  request.Credentials <- new NetworkCredential(user, pwd) 
+                                                  let response = request.GetResponse() :?> FtpWebResponse   
+                                                    
+                                                  use responseStream = response.GetResponseStream() 
+                                                  if useBinary then
+                                                      use ms = new MemoryStream()
+                                                      do! responseStream.CopyToAsync(ms) |> Async.AwaitVoidTask
+                                                      return ms.ToArray() :> obj
+                                                  else
+                                                      use reader = new StreamReader(responseStream)
+                                                      let! r = reader.ReadToEndAsync() |> Async.AwaitTask
+                                                      return r :> obj
                                               }
                                             @@>)
 
                         let contentsPropertyAsync =                                   
-                                ProvidedProperty("GetContentsAsync", typeof<obj>,
+                                ProvidedProperty("GetContentsAsync", typeof<Async<obj>>,
                                                    IsStatic=true,
                                                    GetterCode = getterQuotationAsync)
                         nestedType.AddMember contentsPropertyAsync

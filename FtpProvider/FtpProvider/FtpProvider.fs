@@ -55,7 +55,7 @@ module Async =
     let inline startAsPlainTask (work : Async<unit>) =
       Task.Factory.StartNew(fun () -> work |> Async.RunSynchronously)
 
-    let AwaitVoidTask : (Task -> Async<unit>) =
+    let AwaitUnitTask : (Task -> Async<unit>) =
       Async.AwaitIAsyncResult >> Async.Ignore
 
 [<TypeProvider>]
@@ -120,7 +120,7 @@ type FtpProviderImpl(config : TypeProviderConfig) as this =
                                                   use responseStream = response.GetResponseStream() 
                                                   if useBinary then
                                                       use ms = new MemoryStream()
-                                                      do! responseStream.CopyToAsync(ms) |> Async.AwaitVoidTask
+                                                      do! responseStream.CopyToAsync(ms) |> Async.AwaitUnitTask
                                                       return ms.ToArray() :> obj
                                                   else
                                                       use reader = new StreamReader(responseStream)
